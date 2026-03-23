@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    image: linkding-ai-sync:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: ["serve"]
+
