@@ -19,8 +19,10 @@ class GithubClient:
         timeout: float,
         user_agent: str,
         client: httpx.Client | None = None,
+        anonymous_client: httpx.Client | None = None,
     ) -> None:
         self._owns_client = client is None
+        self._owns_anonymous_client = anonymous_client is None
         self._client = client or httpx.Client(
             base_url=base_url,
             timeout=timeout,
@@ -31,10 +33,21 @@ class GithubClient:
                 "X-GitHub-Api-Version": "2022-11-28",
             },
         )
+        self._anonymous_client = anonymous_client or httpx.Client(
+            base_url=base_url,
+            timeout=timeout,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": user_agent,
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
 
     def close(self) -> None:
         if self._owns_client:
             self._client.close()
+        if self._owns_anonymous_client:
+            self._anonymous_client.close()
 
     def list_starred_repositories(self) -> list[GithubRepository]:
         repositories: list[GithubRepository] = []
@@ -74,7 +87,26 @@ class GithubClient:
         response = self._client.get(f"/repos/{owner}/{name}/readme")
         if response.status_code == 404:
             return None
-        if response.is_error:
+        if response.status_code == 403:
+            anonymous_response = self._anonymous_client.get(f"/repos/{owner}/{name}/readme")
+            if anonymous_response.status_code == 404:
+                return None
+            if not anonymous_response.is_error:
+                LOGGER.info(
+                    "Fetched README for %s/%s via anonymous GitHub access after token 403",
+                    owner,
+                    name,
+                )
+                response = anonymous_response
+            else:
+                LOGGER.warning(
+                    "Skipping README for %s/%s after token 403 and anonymous response %s",
+                    owner,
+                    name,
+                    anonymous_response.status_code,
+                )
+                return None
+        elif response.is_error:
             LOGGER.warning(
                 "Skipping README for %s/%s due to GitHub response %s",
                 owner,
