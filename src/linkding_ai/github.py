@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import base64
+import logging
 
 import httpx
 
 from .models import GithubRepository
+
+LOGGER = logging.getLogger(__name__)
 
 
 class GithubClient:
@@ -71,7 +74,14 @@ class GithubClient:
         response = self._client.get(f"/repos/{owner}/{name}/readme")
         if response.status_code == 404:
             return None
-        response.raise_for_status()
+        if response.is_error:
+            LOGGER.warning(
+                "Skipping README for %s/%s due to GitHub response %s",
+                owner,
+                name,
+                response.status_code,
+            )
+            return None
         payload = response.json()
         content = payload.get("content")
         if not content:
@@ -80,4 +90,3 @@ class GithubClient:
         if encoding != "base64":
             return None
         return base64.b64decode(content).decode("utf-8", errors="ignore")
-
