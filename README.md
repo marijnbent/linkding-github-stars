@@ -1,5 +1,7 @@
 # Linkding AI Sync
 
+![How it works](docs/diagram.svg)
+
 `linkding-ai-sync` is a `uv`-managed Python service that:
 
 - imports your GitHub stars into Linkding
